@@ -4,23 +4,21 @@ class Message {
 }
 
 class Debt {
-  debtor string
-  creditor string
-  amount float
+  debtor string @description(#"The person who owes money"#)
+  creditor string @description(#"The person who should receive money"#)
+  amount float @description(#"The amount of money owed"#)
 }
 
 function ExtractDebts(messages: Message[]) -> Debt[] {
   client OpenRouterDebtExtractor
   prompt #"
     {{ _.role("system") }}
-    Extract debts from chat messages.
+    You recieve a chat history between multiple users. Your task is to extract all the debts mentioned in the chat.
+    Extract them into a list of debts, where each debt has a debtor, a creditor and an amount.
+    Infer from what they are talking about who owes money to whom and how much.
 
     Rules:
-    - Return one debt per payment obligation mentioned.
     - Repeated debts are allowed. Avoid doing arithmetic by yourself.
-    - debtor is the person who owes money.
-    - creditor is the person who should receive money.
-    - Only include debts with a clear amount.
 
     {{ _.role("user") }}
     {% for message in messages %}
@@ -29,6 +27,32 @@ function ExtractDebts(messages: Message[]) -> Debt[] {
 
     {{ ctx.output_format }}
   "#
+}
+
+
+function ExtractImage(receipt: image) -> string {
+  client OpenRouterDebtExtractor
+  prompt #"
+    {{ _.role("system") }}
+    You are a part of a payment processing system.
+    Your task is to extract all the relevant information from the image.
+    If the image is a receipt, extract it as a list of items with prices and the total, the shop name, date ...
+    For anything else just describe and extract text.
+    
+    {{ _.role("user") }}
+    Extract info from this image:
+    {{ receipt }}
+
+    {{ ctx.output_format }}
+  "#
+}
+
+
+test ImageReceiptTest {
+  functions [ExtractImage]
+  args {
+    receipt { url "https://i.redd.it/adzt4bz4llfc1.jpeg"}
+  }
 }
 
 test ExtractDebtsSimple {
@@ -41,11 +65,15 @@ test ExtractDebtsSimple {
       }
       {
         user_name: "Alice",
-        text: "Peter owes me 20"
+        text: "I owe Bob 10 euros"
       }
       {
         user_name: "Bob",
-        text: ""
+        text: "Who payed for the pizza?"
+      }
+      {
+        user_name: "Peter",
+        text: "I paid the pizza for everyone, it was 30 euros. We can split it equally."
       }
     ]
   }
