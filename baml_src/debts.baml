@@ -27,8 +27,12 @@ function ExtractDebts(messages: Message[], normalized_names: string[]) -> Debt[]
     The messages before this point are only info for better understanding those after (reciepts etc...).
     Not all messages are relevant for the debts.
 
-    You are also given a list of normalized known participant names.
-    Prefer assigning debtor and creditor names exactly from that list whenever the message likely refers to one of those people.
+    You are also given a list of normalized known participant names. Some entries may include usernames in brackets.
+    Prefer assigning debtor and creditor by their names exactly from that list whenever the message likely refers to one of those people.
+    Never use the usernames as the debtor or creditor, use it only for context.
+
+    The bracketed username is only extra identity context so you know who is who.
+    When a normalized entry contains a username in brackets, prefer the main person name as the debtor or creditor output, not the bracketed username alone.
     Sometimes the normalized names might be missing. Default to the mentioned name in the message in that case.
 
     Sometimes you will recieve a reply to a message. If it implies a debt was paid back (meaning the money got returned),
@@ -98,6 +102,6 @@ test ExtractDebtsSimple {
         text: "I paid the pizza for everyone, it was 30 euros. We can split it equally."
       }
     ]
-    normalized_names ["Alice", "Bob", "Peter"]
+    normalized_names ["Alice (@alice)", "Bob", "Peter (@peter)"]
   }
 }

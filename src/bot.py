@@ -24,16 +24,30 @@ def resolve_user_name(msg):
     return get_display_name(msg) or get_display_name(msg.get("from")) or "unknown"
 
 
+def format_name_for_llm(msg):
+    name = resolve_user_name(msg)
+    username = msg.get("username") or msg.get("from", {}).get("username")
+
+    if name == "unknown":
+        return None, False
+    if username and username.lower() != name.lower():
+        return f"{name} (@{username})", True
+    return name, False
+
+
 def collect_normalized_names(messages):
-    names = set()
+    names = {}
 
     def visit(msg):
         if not msg:
             return
 
-        name = resolve_user_name(msg)
-        if name != "unknown":
-            names.add(name)
+        formatted_name, has_username = format_name_for_llm(msg)
+        if formatted_name is not None:
+            key = resolve_user_name(msg).lower()
+            existing = names.get(key)
+            if existing is None or (has_username and "(@" not in existing):
+                names[key] = formatted_name
 
         reply_to_message = msg.get("reply_to_message")
         if reply_to_message:
@@ -42,7 +56,7 @@ def collect_normalized_names(messages):
     for msg in messages:
         visit(msg)
 
-    return sorted(names)
+    return sorted(names.values())
 
 
 def collect_username_map(messages):
@@ -167,17 +181,19 @@ def handle_message(message):
         return
 
     raw_messages = db.get_recent_messages(chat_id)
+    non_bot_messages = [msg for msg in raw_messages if not msg.get("from_bot")]
     processed_messages, relevant_messages = split_messages_for_boundary(raw_messages, message_id)
-    normalized_names = collect_normalized_names(relevant_messages)
-    username_map = collect_username_map(raw_messages)
+    normalized_names = collect_normalized_names(non_bot_messages)
+    username_map = collect_username_map(non_bot_messages)
     messages = build_baml_messages(processed_messages, relevant_messages, username_map=username_map)
     logger.info(
-        "prepared chat history chat_id=%s raw_count=%s processed_count=%s relevant_count=%s baml_count=%s",
+        "prepared chat history chat_id=%s raw_count=%s processed_count=%s relevant_count=%s baml_count=%s normalized_names=%s",
         chat_id,
         len(raw_messages),
         len(processed_messages),
         len(relevant_messages),
         len(messages),
+        normalized_names,
     )
 
     if not relevant_messages:
