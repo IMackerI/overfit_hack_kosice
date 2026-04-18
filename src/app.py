@@ -1,4 +1,5 @@
 from flask import Flask, request
+
 from bot import handle_message, handle_reaction
 from config import WEBHOOK_SECRET
 
@@ -20,8 +21,8 @@ def webhook():
     if "message" in data:
         handle_message(data["message"])
 
-    if "reaction" in data:
-        handle_reaction(data["reaction"])
+    if "message_reaction" in data:
+        handle_reaction(data)
 
     return "ok"
 

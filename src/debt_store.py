@@ -20,7 +20,10 @@ class DebtStore:
         db_name: str | None = None,
         collection_name: str = DEFAULT_MONGODB_COLLECTION,
     ):
-        self.client = MongoClient(uri or os.getenv("MONGODB_URI", DEFAULT_MONGODB_URI))
+        self.client = MongoClient(
+            uri or os.getenv("MONGODB_URI", DEFAULT_MONGODB_URI),
+            serverSelectionTimeoutMS=3000,
+        )
         self.collection = self.client[
             db_name or os.getenv("MONGODB_DB", DEFAULT_MONGODB_DB)
         ][collection_name]

@@ -1,12 +1,21 @@
+import os
 from datetime import datetime, timezone
 
 from pymongo import MongoClient
 
 
+DEFAULT_MONGODB_URI = "mongodb://localhost:27017"
+DEFAULT_MONGODB_DB = "telegram_bot"
+
+
 class DataBase:
-    client = MongoClient("mongodb://localhost:27017/")
-    db = client["telegram_bot"]
-    messages_col = db["messages"]
+    def __init__(self, uri: str | None = None, db_name: str | None = None):
+        self.client = MongoClient(
+            uri or os.getenv("MONGODB_URI", DEFAULT_MONGODB_URI),
+            serverSelectionTimeoutMS=3000,
+        )
+        self.db = self.client[db_name or os.getenv("MONGODB_DB", DEFAULT_MONGODB_DB)]
+        self.messages_col = self.db["messages"]
 
     def save_message(self, message):
         doc = {
@@ -44,5 +53,5 @@ class DataBase:
 
         return list(reversed(list(cursor)))
     
-    def find_one(self,  pred):
+    def find_one(self, pred):
         return self.messages_col.find_one(pred)
