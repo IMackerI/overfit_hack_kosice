@@ -10,5 +10,6 @@ dependencies = [
     "uvicorn>=0.44.0",
     "flask",
     "requests",
-    "python-dotenv"
+    "python-dotenv",
+    "baml-py==0.220.0",
 ]

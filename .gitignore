@@ -1,3 +1,5 @@
 .env
 
 uv.lock
+
+src/baml_client/
