@@ -31,6 +31,9 @@ class DataBase:
             "timestamp": datetime.now(timezone.utc),
         }
 
+        if "reply_to_message" in message:
+            doc["reply_to_message"] = message.get("reply_to_message")
+
         # text message
         if "text" in message:
             doc["type"] = "text"

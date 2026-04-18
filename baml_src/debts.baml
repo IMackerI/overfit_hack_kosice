@@ -24,6 +24,9 @@ function ExtractDebts(messages: Message[]) -> Debt[] {
     Only messages since the last tag of the bot are relevant. The messages before that have already been processed.
     Not all messages are relevant for the debts.
 
+    Sometimes you will recieve a reply to a message that implies a debt was paid back.
+    In that case, add the exact same debt but with the debtor and creditor switched and the same amount.
+
     Rules:
     - Repeated debts are allowed. Avoid doing arithmetic by yourself.
 
@@ -31,6 +34,8 @@ function ExtractDebts(messages: Message[]) -> Debt[] {
     {% for message in messages %}
     - {{ message }}
     {% endfor %}
+
+    Don't forget 
 
     {{ ctx.output_format }}
   "#
@@ -49,21 +54,6 @@ function ExtractImage(receipt: image) -> string {
     {{ _.role("user") }}
     Extract info from this image:
     {{ receipt }}
-
-    {{ ctx.output_format }}
-  "#
-}
-
-function IsTransactionDone(message: Message) -> bool {
-  client OpenRouterDebtExtractor
-  prompt #"
-    {{ _.role("system") }}
-    You are a part of a payment processing system.
-    You see a message that is a reply to a message about a debt.
-    Your task is to determine if the transaction has been done or not.
-    {{ _.role("user") }}
-    Do you think the money has been sent based on this message?
-    {{ message }}
 
     {{ ctx.output_format }}
   "#

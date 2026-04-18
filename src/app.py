@@ -3,7 +3,7 @@ from threading import Thread
 
 from flask import Flask, request
 
-from bot import handle_message, handle_reaction
+from bot import handle_message
 from config import WEBHOOK_SECRET
 
 logger = logging.getLogger(__name__)
@@ -47,15 +47,6 @@ def webhook():
             message.get("message_id"),
         )
         run_async("handle_message", handle_message, message)
-
-    if "message_reaction" in data:
-        reaction = data["message_reaction"]
-        logger.info(
-            "dispatching reaction update chat_id=%s message_id=%s",
-            reaction.get("chat", {}).get("id"),
-            reaction.get("message_id"),
-        )
-        run_async("handle_reaction", handle_reaction, data)
 
     return "ok"
 

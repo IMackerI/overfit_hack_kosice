@@ -19,14 +19,18 @@ debt_store = DebtStore()
 
 
 def load_photo_message(msg):
-    caption = msg.get("caption", "")
-    if not caption:
-        logger.info("skipping photo message without caption")
-        return None
-    return Message(user_name=msg.get("username") or "unknown", text=f"[photo] {caption}")
+    url = f"{TELEGRAM_API}/getFile"
+    params = {"file_id": msg["file_id"]}
 
+    response = requests.get(url, params=params).json()
+
+    if response.get("ok"):
+        return Message(msg.get("username"), b.ExtractImage(response["result"]["file_path"]))
+
+    return None
 
 def load_text_message(msg):
+    logger.debug("msg: " + str(msg))
     return Message(
         user_name=msg.get("username") or "unknown",
         text=msg.get("text") or "",
