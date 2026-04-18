@@ -1,5 +1,6 @@
 import requests
 from config import BOT_TOKEN
+from baml_client import b
 from baml_client.types import Message, Debt
 from chat_history import DataBase
 
@@ -9,7 +10,15 @@ TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 db = DataBase()
 
 def load_photo_message(msg):
-    pass
+    url = f"{TELEGRAM_API}/getFile"
+    params = {"file_id": file_id}
+
+    response = requests.get(url, params=params).json()
+
+    if response.get("ok"):
+        return Message(msg.get("username"), b.ExtractImage(response["result"]["file_path"]))
+
+    return None
 
 def load_text_message(msg):
     return Message(msg.get("username"), msg.get("text"))
@@ -19,6 +28,8 @@ def get_chat_history(chat_id):
     for msg in db.get_recent_messages(chat_id):
         if msg.get("type") == "text":
             output.append(load_text_message(msg))
+        if msg.get("type") == "photo":
+            output.append(load_photo_message(msg))
 
 
 def handle_message(message):
@@ -28,11 +39,13 @@ def handle_message(message):
     # If tagged, recap history
     if f"@{BOT_USERNAME.lower()}" in text.lower():
         chat_id = message["chat"]["id"]
-        return get_chat_history(chat_id)
-    
+        messages = get_chat_history(chat_id)
+        debts = b.ExtractDebts(messages)
+        summarize_debts(debts)
 
     #TODO remove all database entries?
     # TODO volaj najeaky analyzer
+    
 
 def handle_reaction(update):
     reaction = update.get("message_reaction")
@@ -54,12 +67,8 @@ def handle_reaction(update):
     if not msg:
         return
 
+
     # TODO volaj najeaky analyzer
-    emojis = [
-        r.get("emoji")
-        for r in reaction.get("reaction", [])
-        if r.get("type") == "emoji"
-    ]
 
     
 def send_message(chat_id, text):
@@ -69,3 +78,21 @@ def send_message(chat_id, text):
         "text": text
     }
     requests.post(url, json=payload)
+
+
+def summarize_debts(debts, chat_id):
+
+    debt_map = dict()
+    for d in debts:
+        if d.creditor not in debt_map:
+            debt_map[d.creditor] = 0
+        if d.debtor not in debt_map:
+            debt_map[d.debtor] = 0
+        
+        debt_map[d.creditor] += d.amount
+        debt_map[d.debtor] -= d.amount
+
+    for (k,v) in debt_map:
+        pass
+
+
