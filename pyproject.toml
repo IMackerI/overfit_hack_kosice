@@ -8,4 +8,7 @@ dependencies = [
     "fastapi>=0.136.0",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.44.0",
+    "flask",
+    "requests",
+    "python-dotenv"
 ]
