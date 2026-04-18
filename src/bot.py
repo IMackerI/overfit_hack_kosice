@@ -23,6 +23,27 @@ def resolve_user_name(msg):
     return get_display_name(msg) or get_display_name(msg.get("from")) or "unknown"
 
 
+def collect_normalized_names(messages):
+    names = set()
+
+    def visit(msg):
+        if not msg:
+            return
+
+        name = resolve_user_name(msg)
+        if name != "unknown":
+            names.add(name)
+
+        reply_to_message = msg.get("reply_to_message")
+        if reply_to_message:
+            visit(reply_to_message)
+
+    for msg in messages:
+        visit(msg)
+
+    return sorted(names)
+
+
 def load_photo_message(msg):
     url = f"{TELEGRAM_API}/getFile"
     params = {"file_id": msg["file_id"]}
@@ -85,6 +106,8 @@ def handle_message(message):
         logger.info("message ignored because bot was not mentioned chat_id=%s message_id=%s", chat_id, message_id)
         return
 
+    raw_messages = db.get_recent_messages(chat_id)
+    normalized_names = collect_normalized_names(raw_messages)
     messages = get_chat_history(chat_id)
 
     if not messages:
@@ -93,8 +116,13 @@ def handle_message(message):
         return
 
     start = time.monotonic()
-    logger.info("starting BAML ExtractDebts chat_id=%s message_count=%s", chat_id, len(messages))
-    debts = b.ExtractDebts(messages)
+    logger.info(
+        "starting BAML ExtractDebts chat_id=%s message_count=%s normalized_name_count=%s",
+        chat_id,
+        len(messages),
+        len(normalized_names),
+    )
+    debts = b.ExtractDebts(messages, normalized_names)
     logger.info(
         "finished BAML ExtractDebts chat_id=%s debt_count=%s duration_s=%.2f",
         chat_id,

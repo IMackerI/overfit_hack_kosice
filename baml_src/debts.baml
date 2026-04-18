@@ -14,7 +14,7 @@ class Question {
   question string
 }
 
-function ExtractDebts(messages: Message[]) -> Debt[] {
+function ExtractDebts(messages: Message[], normalized_names: string[]) -> Debt[] {
   client OpenRouterDebtExtractor
   prompt #"
     {{ _.role("system") }}
@@ -24,6 +24,10 @@ function ExtractDebts(messages: Message[]) -> Debt[] {
     Only messages since the last tag of the bot are relevant. The messages before that have already been processed.
     Not all messages are relevant for the debts.
 
+    You are also given a list of normalized known participant names.
+    Prefer assigning debtor and creditor names exactly from that list whenever the message likely refers to one of those people.
+    Only use a completely different name if the chat clearly refers to someone not represented by the normalized names.
+
     Sometimes you will recieve a reply to a message that implies a debt was paid back.
     In that case, add the exact same debt but with the debtor and creditor switched and the same amount.
 
@@ -31,11 +35,17 @@ function ExtractDebts(messages: Message[]) -> Debt[] {
     - Repeated debts are allowed. Avoid doing arithmetic by yourself.
 
     {{ _.role("user") }}
+    Normalized names:
+    {% for name in normalized_names %}
+    - {{ name }}
+    {% endfor %}
+
+    Messages:
     {% for message in messages %}
     - {{ message }}
     {% endfor %}
 
-    Don't forget 
+    Don't forget to exclude the messages before the last tag of the bot from the debts.
 
     {{ ctx.output_format }}
   "#
@@ -87,5 +97,6 @@ test ExtractDebtsSimple {
         text: "I paid the pizza for everyone, it was 30 euros. We can split it equally."
       }
     ]
+    normalized_names ["Alice", "Bob", "Peter"]
   }
 }
