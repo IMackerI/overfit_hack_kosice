@@ -1,6 +1,7 @@
 class Message {
   user_name string
   text string
+  reply_to Message? @description(#"The message this message is replying to, if any"#)
 }
 
 class Debt {
