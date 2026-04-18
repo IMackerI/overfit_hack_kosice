@@ -1,3 +1,4 @@
+import logging
 import os
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -11,6 +12,8 @@ EPSILON = 1e-9
 DEFAULT_MONGODB_URI = "mongodb://localhost:27017"
 DEFAULT_MONGODB_DB = "overfit_hack_kosice"
 DEFAULT_MONGODB_COLLECTION = "debts"
+
+logger = logging.getLogger(__name__)
 
 
 class DebtStore:
@@ -27,6 +30,11 @@ class DebtStore:
         self.collection = self.client[
             db_name or os.getenv("MONGODB_DB", DEFAULT_MONGODB_DB)
         ][collection_name]
+        logger.info(
+            "debt store initialized db=%s collection=%s",
+            self.collection.database.name,
+            self.collection.name,
+        )
 
     def add_debt(self, debt: Debt) -> None:
         if debt.amount <= EPSILON or debt.debtor == debt.creditor:
@@ -39,6 +47,12 @@ class DebtStore:
                 "amount": debt.amount,
                 "created_at": datetime.now(UTC),
             }
+        )
+        logger.info(
+            "stored debt debtor=%s creditor=%s amount=%s",
+            debt.debtor,
+            debt.creditor,
+            debt.amount,
         )
 
     def add_debts(self, debts: list[Debt]) -> None:
@@ -56,6 +70,7 @@ class DebtStore:
             return
 
         self.collection.insert_many(documents)
+        logger.info("stored debts count=%s", len(documents))
 
     def get_simplified_debts(self) -> list[Debt]:
         debts = [
@@ -69,7 +84,10 @@ class DebtStore:
                 {"_id": 0, "debtor": 1, "creditor": 1, "amount": 1},
             )
         ]
-        return self._simplify(debts)
+        logger.info("loaded raw debts count=%s", len(debts))
+        simplified = self._simplify(debts)
+        logger.info("simplified debts count=%s", len(simplified))
+        return simplified
 
     @staticmethod
     def _simplify(debts: list[Debt]) -> list[Debt]:
@@ -117,4 +135,5 @@ class DebtStore:
         return simplified
 
     def close(self) -> None:
+        logger.info("closing debt store client")
         self.client.close()

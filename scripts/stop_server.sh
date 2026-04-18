@@ -36,7 +36,8 @@ kill_pidfile "$NGROK_PID_FILE"
 kill_pidfile "$APP_PID_FILE"
 kill_pidfile "$MONGO_PID_FILE"
 
-pkill -f "$ROOT/.venv/bin/python3 src/app.py" 2>/dev/null || true
+pkill -f "$ROOT/.venv/bin/python3 app.py" 2>/dev/null || true
+pkill -f "cd $ROOT/src && uv run python app.py" 2>/dev/null || true
 pkill -f "ngrok http 5001" 2>/dev/null || true
 pkill -f "mongod --dbpath $ROOT/.mongo-data" 2>/dev/null || true
 

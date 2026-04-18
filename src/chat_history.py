@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -6,6 +7,8 @@ from pymongo import MongoClient
 
 DEFAULT_MONGODB_URI = "mongodb://localhost:27017"
 DEFAULT_MONGODB_DB = "telegram_bot"
+
+logger = logging.getLogger(__name__)
 
 
 class DataBase:
@@ -16,6 +19,7 @@ class DataBase:
         )
         self.db = self.client[db_name or os.getenv("MONGODB_DB", DEFAULT_MONGODB_DB)]
         self.messages_col = self.db["messages"]
+        logger.info("chat history db initialized db=%s", self.db.name)
 
     def save_message(self, message):
         doc = {
@@ -42,6 +46,12 @@ class DataBase:
             doc["caption"] = message.get("caption", "")
 
         self.messages_col.insert_one(doc)
+        logger.info(
+            "saved message chat_id=%s user_id=%s type=%s",
+            doc["chat_id"],
+            doc["user_id"],
+            doc.get("type"),
+        )
 
 
     def get_recent_messages(self, chat_id, limit=50):
@@ -51,7 +61,15 @@ class DataBase:
             .limit(limit)
         )
 
-        return list(reversed(list(cursor)))
-    
+        messages = list(reversed(list(cursor)))
+        logger.info(
+            "loaded recent messages chat_id=%s limit=%s count=%s",
+            chat_id,
+            limit,
+            len(messages),
+        )
+        return messages
+
     def find_one(self, pred):
+        logger.debug("find_one in chat history with pred=%s", pred)
         return self.messages_col.find_one(pred)
