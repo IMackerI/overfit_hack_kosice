@@ -3,11 +3,13 @@ from config import BOT_TOKEN
 from baml_client import b
 from baml_client.types import Message, Debt
 from chat_history import DataBase
+from debt_store import DebtStore
 
 BOT_USERNAME = "hack_kosice_bot"
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 db = DataBase()
+debt_store = DebtStore()
 
 def load_photo_message(msg):
     url = f"{TELEGRAM_API}/getFile"
@@ -37,11 +39,16 @@ def handle_message(message):
     text = message.get("text", "")
 
     # If tagged, recap history
-    if f"@{BOT_USERNAME.lower()}" in text.lower():
-        chat_id = message["chat"]["id"]
-        messages = get_chat_history(chat_id)
-        debts = b.ExtractDebts(messages)
-        summarize_debts(debts)
+    if f"@{BOT_USERNAME.lower()}" not in text.lower():
+        return
+    
+    chat_id = message["chat"]["id"]
+    messages = get_chat_history(chat_id)
+    debts = b.ExtractDebts(messages)
+
+    debt_store.add_debts(debts)
+    debts = debt_store.get_simplified_debts()
+    summarize_debts(debts)
 
     #TODO remove all database entries?
     # TODO volaj najeaky analyzer
@@ -80,19 +87,16 @@ def send_message(chat_id, text):
     requests.post(url, json=payload)
 
 
+def demand_payment(debt: Debt, chat_id):
+
+    text = f"{debt.creditor} is owed by {debt.debtor} amount {debt.amount}"
+    send_message(chat_id, text)
+
 def summarize_debts(debts, chat_id):
 
-    debt_map = dict()
     for d in debts:
-        if d.creditor not in debt_map:
-            debt_map[d.creditor] = 0
-        if d.debtor not in debt_map:
-            debt_map[d.debtor] = 0
-        
-        debt_map[d.creditor] += d.amount
-        debt_map[d.debtor] -= d.amount
+        demand_payment(d, chat_id)
 
-    for (k,v) in debt_map:
-        pass
+
 
 
