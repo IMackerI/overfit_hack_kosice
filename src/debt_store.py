@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -14,6 +15,10 @@ DEFAULT_MONGODB_DB = "overfit_hack_kosice"
 DEFAULT_MONGODB_COLLECTION = "debts"
 
 logger = logging.getLogger(__name__)
+
+
+def has_valid_amount(amount) -> bool:
+    return amount is not None and math.isfinite(float(amount)) and float(amount) > EPSILON
 
 
 class DebtStore:
@@ -37,7 +42,13 @@ class DebtStore:
         )
 
     def add_debt(self, debt: Debt) -> None:
-        if debt.amount <= EPSILON or debt.debtor == debt.creditor:
+        if not has_valid_amount(debt.amount) or debt.debtor == debt.creditor:
+            logger.warning(
+                "skipping invalid debt debtor=%s creditor=%s amount=%r",
+                debt.debtor,
+                debt.creditor,
+                debt.amount,
+            )
             return
 
         self.collection.insert_one(
@@ -56,35 +67,56 @@ class DebtStore:
         )
 
     def add_debts(self, debts: list[Debt]) -> None:
-        documents = [
-            {
-                "debtor": debt.debtor,
-                "creditor": debt.creditor,
-                "amount": debt.amount,
-                "created_at": datetime.now(UTC),
-            }
-            for debt in debts
-            if debt.amount > EPSILON and debt.debtor != debt.creditor
-        ]
+        documents = []
+        skipped = 0
+        for debt in debts:
+            if not has_valid_amount(debt.amount) or debt.debtor == debt.creditor:
+                skipped += 1
+                logger.warning(
+                    "skipping invalid debt debtor=%s creditor=%s amount=%r",
+                    debt.debtor,
+                    debt.creditor,
+                    debt.amount,
+                )
+                continue
+
+            documents.append(
+                {
+                    "debtor": debt.debtor,
+                    "creditor": debt.creditor,
+                    "amount": float(debt.amount),
+                    "created_at": datetime.now(UTC),
+                }
+            )
+
         if not documents:
+            logger.info("no valid debts to store skipped=%s", skipped)
             return
 
         self.collection.insert_many(documents)
-        logger.info("stored debts count=%s", len(documents))
+        logger.info("stored debts count=%s skipped=%s", len(documents), skipped)
 
     def get_simplified_debts(self) -> list[Debt]:
-        debts = [
-            Debt(
-                debtor=document["debtor"],
-                creditor=document["creditor"],
-                amount=float(document["amount"]),
+        debts = []
+        skipped = 0
+        for document in self.collection.find(
+            {},
+            {"_id": 0, "debtor": 1, "creditor": 1, "amount": 1},
+        ):
+            amount = float(document["amount"])
+            if not has_valid_amount(amount) or document["debtor"] == document["creditor"]:
+                skipped += 1
+                logger.warning("ignoring invalid stored debt document=%s", document)
+                continue
+
+            debts.append(
+                Debt(
+                    debtor=document["debtor"],
+                    creditor=document["creditor"],
+                    amount=amount,
+                )
             )
-            for document in self.collection.find(
-                {},
-                {"_id": 0, "debtor": 1, "creditor": 1, "amount": 1},
-            )
-        ]
-        logger.info("loaded raw debts count=%s", len(debts))
+        logger.info("loaded raw debts count=%s skipped=%s", len(debts), skipped)
         simplified = self._simplify(debts)
         logger.info("simplified debts count=%s", len(simplified))
         return simplified
@@ -115,7 +147,26 @@ class DebtStore:
             creditor_name = str(creditors[creditor_index][0])
             creditor_amount = float(creditors[creditor_index][1])
 
+            if not has_valid_amount(debtor_amount) or not has_valid_amount(creditor_amount):
+                logger.warning(
+                    "stopping simplify because of invalid balance debtor=%s amount=%r creditor=%s amount=%r",
+                    debtor_name,
+                    debtor_amount,
+                    creditor_name,
+                    creditor_amount,
+                )
+                break
+
             settled = min(debtor_amount, creditor_amount)
+            if not has_valid_amount(settled):
+                logger.warning(
+                    "stopping simplify because settled amount is invalid debtor=%s creditor=%s amount=%r",
+                    debtor_name,
+                    creditor_name,
+                    settled,
+                )
+                break
+
             simplified.append(
                 Debt(
                     debtor=debtor_name,
@@ -127,9 +178,9 @@ class DebtStore:
             debtors[debtor_index][1] = debtor_amount - settled
             creditors[creditor_index][1] = creditor_amount - settled
 
-            if float(debtors[debtor_index][1]) <= EPSILON:
+            if not math.isfinite(float(debtors[debtor_index][1])) or float(debtors[debtor_index][1]) <= EPSILON:
                 debtor_index += 1
-            if float(creditors[creditor_index][1]) <= EPSILON:
+            if not math.isfinite(float(creditors[creditor_index][1])) or float(creditors[creditor_index][1]) <= EPSILON:
                 creditor_index += 1
 
         return simplified

@@ -24,6 +24,7 @@ class DataBase:
     def save_message(self, message):
         doc = {
             "chat_id": message["chat"]["id"],
+            "message_id": message.get("message_id"),
             "user_id": message["from"]["id"],
             "from_bot": False,
             "username": message["from"].get("username"),
@@ -47,10 +48,30 @@ class DataBase:
 
         self.messages_col.insert_one(doc)
         logger.info(
-            "saved message chat_id=%s user_id=%s type=%s",
+            "saved message chat_id=%s message_id=%s user_id=%s type=%s",
             doc["chat_id"],
+            doc.get("message_id"),
             doc["user_id"],
             doc.get("type"),
+        )
+
+    def save_bot_message(self, message):
+        doc = {
+            "chat_id": message["chat"]["id"],
+            "message_id": message.get("message_id"),
+            "user_id": message.get("from", {}).get("id"),
+            "from_bot": True,
+            "username": message.get("from", {}).get("username"),
+            "timestamp": datetime.now(timezone.utc),
+            "type": "text",
+            "text": message.get("text", ""),
+        }
+        self.messages_col.insert_one(doc)
+        logger.info(
+            "saved bot message chat_id=%s message_id=%s text=%r",
+            doc["chat_id"],
+            doc.get("message_id"),
+            doc.get("text"),
         )
 
 

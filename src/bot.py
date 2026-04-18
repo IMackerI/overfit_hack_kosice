@@ -98,7 +98,13 @@ def handle_reaction(update):
 
     chat_id = reaction["chat"]["id"]
     message_id = reaction["message_id"]
-    logger.info("handle_reaction chat_id=%s message_id=%s", chat_id, message_id)
+    new_reaction = reaction.get("new_reaction", [])
+    logger.info(
+        "handle_reaction chat_id=%s message_id=%s new_reaction=%s",
+        chat_id,
+        message_id,
+        new_reaction,
+    )
 
     msg = db.find_one({
         "chat_id": chat_id,
@@ -111,6 +117,11 @@ def handle_reaction(update):
         return
 
     logger.info("reaction matched a bot message")
+    reaction_text = ", ".join(
+        item.get("emoji") or item.get("type", "unknown")
+        for item in new_reaction
+    ) or "reaction"
+    send_message(chat_id, f"Got reaction on bot message: {reaction_text}")
 
 
 def send_message(chat_id, text):
@@ -122,6 +133,11 @@ def send_message(chat_id, text):
     logger.info("sending telegram message chat_id=%s text=%r", chat_id, text)
     response = requests.post(url, json=payload, timeout=10)
     logger.info("telegram sendMessage status=%s", response.status_code)
+    response_json = response.json()
+    if response.ok and response_json.get("ok"):
+        db.save_bot_message(response_json["result"])
+    else:
+        logger.warning("telegram sendMessage failed body=%s", response_json)
 
 
 def demand_payment(debt: Debt, chat_id):

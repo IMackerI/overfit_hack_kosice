@@ -46,6 +46,40 @@ wait_for_http() {
   return 1
 }
 
+get_ngrok_public_url() {
+  python - <<'PY'
+import json
+from urllib.error import URLError
+from urllib.request import urlopen
+
+try:
+    with urlopen('http://127.0.0.1:4040/api/tunnels') as response:
+        data = json.load(response)
+except URLError:
+    data = {}
+
+for tunnel in data.get('tunnels', []):
+    url = tunnel.get('public_url', '')
+    if url.startswith('https://'):
+        print(url)
+        break
+PY
+}
+
+wait_for_ngrok_public_url() {
+  local tries="${1:-30}"
+  for ((i = 0; i < tries; i++)); do
+    local url
+    url="$(get_ngrok_public_url | tail -n 1)"
+    if [[ -n "$url" ]]; then
+      printf '%s\n' "$url"
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 if ss -ltn '( sport = :27017 )' | grep -q 27017; then
   echo "MongoDB already running on 27017"
 else
@@ -83,24 +117,7 @@ fi
 
 wait_for_http "http://127.0.0.1:4040/api/tunnels" 30
 
-PUBLIC_URL="$({ python - <<'PY'
-import json
-from urllib.error import URLError
-from urllib.request import urlopen
-
-try:
-    with urlopen('http://127.0.0.1:4040/api/tunnels') as response:
-        data = json.load(response)
-except URLError:
-    data = {}
-
-for tunnel in data.get('tunnels', []):
-    url = tunnel.get('public_url', '')
-    if url.startswith('https://'):
-        print(url)
-        break
-PY
-} | tail -n 1)"
+PUBLIC_URL="$(wait_for_ngrok_public_url 30 || true)"
 
 if [[ -z "$PUBLIC_URL" ]]; then
   echo "Could not determine ngrok public URL." >&2
@@ -118,15 +135,9 @@ printf '%s\n' "$PUBLIC_URL" > "$NGROK_URL_FILE"
 
 WEBHOOK_URL="$PUBLIC_URL/webhook/$WEBHOOK_SECRET"
 
-curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
+curl -fsS -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://your-domain.com/webhook",
-    "allowed_updates": ["message", "message_reaction"]
-  }'
-  
-curl -fsS "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
-  --data-urlencode "url=$WEBHOOK_URL" \
+  -d "{\"url\":\"$WEBHOOK_URL\",\"allowed_updates\":[\"message\",\"message_reaction\"]}" \
   > "$ROOT/.logs/set_webhook.json"
 
 echo ""
